@@ -1,0 +1,226 @@
+
+{
+  "entities": {
+    "Department": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Department",
+      "type": "object",
+      "description": "Represents a department within the organization, such as ICT, SCM, or HR.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the department."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the department (e.g., ICT, SCM, HR)."
+        },
+        "icon": {
+            "type": "string",
+            "description": "The name of the lucide-react icon to use."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "icon"
+      ]
+    },
+    "Document": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Document",
+      "type": "object",
+      "description": "Represents a document being tracked through the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the document."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name/Title of the document."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of document (e.g., Invoice, Contract)."
+        },
+        "content": {
+            "type": "string",
+            "description": "The main content or description of the document."
+        },
+        "workflowId": {
+          "type": "string",
+          "description": "Reference to the Workflow this document follows."
+        },
+        "currentStep": {
+            "type": "number",
+            "description": "The current step index in the workflow's departmentIds array."
+        },
+        "history": {
+            "type": "array",
+            "description": "An array of historical actions taken on the document.",
+            "items": { "$ref": "#/entities/DocumentHistory" }
+        },
+        "status": {
+            "type": "string",
+            "enum": ["In-Progress", "Completed", "Rejected"],
+            "description": "The overall status of the document's workflow."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "content"
+      ]
+    },
+    "DocumentHistory": {
+        "title": "DocumentHistory",
+        "type": "object",
+        "description": "Represents a single event in a document's workflow history.",
+        "properties": {
+            "departmentId": { "type": "string" },
+            "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected", "Upcoming", "Completed"] },
+            "timestamp": { "type": "string", "format": "date-time" },
+            "notes": { "type": "string" }
+        },
+        "required": ["departmentId", "status", "timestamp"]
+    },
+    "Workflow": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Workflow",
+      "type": "object",
+      "description": "Defines a structured workflow for a specific document type.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the workflow."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the workflow."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the workflow's purpose."
+        },
+        "departmentIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "An ordered array of Department IDs representing the workflow path."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "departmentIds"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user (matches Firebase Auth UID)."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "persalNumber": {
+            "type": "string",
+            "description": "The user's 8-digit persal number.",
+            "pattern": "^[0-9]{8}$"
+        },
+        "role": {
+            "type": "string",
+            "enum": ["Administrator", "Deputy Director", "Assistant Director", "Chief Director", "Personal Assistant", "Other"],
+            "description": "The user's role in the system."
+        },
+        "departmentId": {
+          "type": "string",
+          "description": "Reference to Department. The department the user belongs to."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "persalNumber",
+        "role"
+      ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification sent to a user regarding a document's workflow.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the notification."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. The user who received the notification."
+        },
+        "message": {
+          "type": "string",
+          "description": "The content of the notification message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Date and time when the notification was sent.",
+          "format": "date-time"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Indicates whether the user has read the notification."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "message",
+        "timestamp",
+        "isRead"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password"
+    ]
+  },
+  "firestore": {
+    "/departments/{departmentId}": {
+        "schema": { "$ref": "#/entities/Department" },
+        "description": "Stores all departments in the organization."
+    },
+    "/documents/{documentId}": {
+        "schema": { "$ref": "#/entities/Document" },
+        "description": "Stores all documents being tracked by the system."
+    },
+    "/workflows/{workflowId}": {
+        "schema": { "$ref": "#/entities/Workflow" },
+        "description": "Stores all workflow definitions."
+    },
+    "/users/{userId}": {
+        "schema": { "$ref": "#/entities/User" },
+        "description": "Stores user profiles, linked to Firebase Auth by UID."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+        "schema": { "$ref": "#/entities/Notification" },
+        "description": "Stores notifications for a specific user."
+    }
+  }
+}

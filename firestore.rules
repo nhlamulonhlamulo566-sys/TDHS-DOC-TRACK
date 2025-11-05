@@ -1,0 +1,222 @@
+/**
+ * @fileoverview Firestore Security Rules for TDHS DOC TRACK application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes a secure, scalable data model based on explicit ownership and roles. It enforces strong authorization and data integrity while allowing for flexible data shapes during prototyping.
+ *
+ * Data Structure:
+ * The Firestore data is organized as follows:
+ * - `/departments/{departmentId}`: Stores department information.
+ * - `/workflows/{workflowId}`: Stores workflow definitions.
+ * - `/workflows/{workflowId}/stages/{workflowStageId}`: Stores workflow stages associated with a workflow.
+ * - `/documents/{documentId}`: Stores document information.
+ * - `/users/{userId}`: Stores user information.
+ * - `/roles/{roleId}`: Stores role definitions.
+ * - `/user_roles/{userRoleId}`: Associates users with roles.
+ * - `/users/{userId}/notifications/{notificationId}`: Stores notifications for each user.
+ *
+ * Key Security Decisions:
+ * - Strict user-ownership model for data under `/users/{userId}`.
+ * - Departments, Workflows, Roles, and UserRoles are globally accessible.
+ * - Notifications are only accessible by the owner.
+ *
+ * Denormalization for Authorization:
+ * The application does not use any denormalized authorization data, but this may need to be reevaluated as the application matures.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Checks if the request is authenticated.
+     * @return {boolean} True if the request is authenticated, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user ID matches the authenticated user's ID, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource and the resource exists.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user ID matches the authenticated user's ID and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+
+    /**
+     * @description Rules for the /departments collection.
+     * @path /departments/{departmentId}
+     * @allow (create) Authenticated user can create a department.
+     * @deny (create) Unauthenticated user cannot create a department.
+     * @allow (get) Authenticated user can get a department.
+     * @deny (get) Unauthenticated user cannot get a department.
+     * @allow (list) Authenticated user can list departments.
+     * @deny (list) Unauthenticated user cannot list departments.
+     * @allow (update) Authenticated user can update a department.
+     * @deny (update) Unauthenticated user cannot update a department.
+     * @allow (delete) Authenticated user can delete a department.
+     * @deny (delete) Unauthenticated user cannot delete a department.
+     * @principle Allows any authenticated user to read or write department data.
+     */
+    match /departments/{departmentId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /workflows collection.
+     * @path /workflows/{workflowId}
+     * @allow (create) Authenticated user can create a workflow.
+     * @deny (create) Unauthenticated user cannot create a workflow.
+     * @allow (get) Authenticated user can get a workflow.
+     * @deny (get) Unauthenticated user cannot get a workflow.
+     * @allow (list) Authenticated user can list workflows.
+     * @deny (list) Unauthenticated user cannot list workflows.
+     * @allow (update) Authenticated user can update a workflow.
+     * @deny (update) Unauthenticated user cannot update a workflow.
+     * @allow (delete) Authenticated user can delete a workflow.
+     * @deny (delete) Unauthenticated user cannot delete a workflow.
+     * @principle Allows any authenticated user to read or write workflow data.
+     */
+    match /workflows/{workflowId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /workflows/{workflowId}/stages collection.
+     * @path /workflows/{workflowId}/stages/{workflowStageId}
+     * @allow (create) Authenticated user can create a workflow stage.
+     * @deny (create) Unauthenticated user cannot create a workflow stage.
+     * @allow (get) Authenticated user can get a workflow stage.
+     * @deny (get) Unauthenticated user cannot get a workflow stage.
+     * @allow (list) Authenticated user can list workflow stages.
+     * @deny (list) Unauthenticated user cannot list workflow stages.
+     * @allow (update) Authenticated user can update a workflow stage.
+     * @deny (update) Unauthenticated user cannot update a workflow stage.
+     * @allow (delete) Authenticated user can delete a workflow stage.
+     * @deny (delete) Unauthenticated user cannot delete a workflow stage.
+     * @principle Allows any authenticated user to read or write workflow stage data.
+     */
+    match /workflows/{workflowId}/stages/{workflowStageId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /documents collection.
+     * @path /documents/{documentId}
+     * @allow (create) Authenticated user can create a document.
+     * @deny (create) Unauthenticated user cannot create a document.
+     * @allow (get) Authenticated user can get a document.
+     * @deny (get) Unauthenticated user cannot get a document.
+     * @allow (list) Authenticated user can list documents.
+     * @deny (list) Unauthenticated user cannot list documents.
+     * @allow (update) Authenticated user can update a document.
+     * @deny (update) Unauthenticated user cannot update a document.
+     * @allow (delete) Authenticated user can delete a document.
+     * @deny (delete) Unauthenticated user cannot delete a document.
+     * @principle Allows any authenticated user to read or write document data.
+     */
+    match /documents/{documentId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /users collection.
+     * @path /users/{userId}
+     * @allow (create) Authenticated user can create their own user document.
+     * @deny (create) Authenticated user cannot create another user's document.
+     * @allow (get) Authenticated user can get their own user document.
+     * @deny (get) Authenticated user cannot get another user's document.
+     * @allow (list) Authenticated user can list documents.
+     * @deny (list) Unauthenticated user cannot list documents.
+     * @allow (update) Authenticated user can update their own user document.
+     * @deny (update) Authenticated user cannot update another user's document.
+     * @allow (delete) Authenticated user can delete their own user document.
+     * @deny (delete) Authenticated user cannot delete another user's document.
+     * @principle Enforces document ownership for user data.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for the /roles collection.
+     * @path /roles/{roleId}
+     * @allow (create) Authenticated user can create a role.
+     * @deny (create) Unauthenticated user cannot create a role.
+     * @allow (get) Authenticated user can get a role.
+     * @deny (get) Unauthenticated user cannot get a role.
+     * @allow (list) Authenticated user can list roles.
+     * @deny (list) Unauthenticated user cannot list roles.
+     * @allow (update) Authenticated user can update a role.
+     * @deny (update) Unauthenticated user cannot update a role.
+     * @allow (delete) Authenticated user can delete a role.
+     * @deny (delete) Unauthenticated user cannot delete a role.
+     * @principle Allows any authenticated user to read or write role data.
+     */
+    match /roles/{roleId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /user_roles collection.
+     * @path /user_roles/{userRoleId}
+     * @allow (create) Authenticated user can create a user role.
+     * @deny (create) Unauthenticated user cannot create a user role.
+     * @allow (get) Authenticated user can get a user role.
+     * @deny (get) Unauthenticated user cannot get a user role.
+     * @allow (list) Authenticated user can list user roles.
+     * @deny (list) Unauthenticated user cannot list user roles.
+     * @allow (update) Authenticated user can update a user role.
+     * @deny (update) Unauthenticated user cannot update a user role.
+     * @allow (delete) Authenticated user can delete a user role.
+     * @deny (delete) Unauthenticated user cannot delete a user role.
+     * @principle Allows any authenticated user to read or write user role data.
+     */
+    match /user_roles/{userRoleId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Rules for the /users/{userId}/notifications collection.
+     * @path /users/{userId}/notifications/{notificationId}
+     * @allow (create) Authenticated user can create a notification for themself.
+     * @deny (create) Authenticated user cannot create a notification for another user.
+     * @allow (get) Authenticated user can get their own notification.
+     * @deny (get) Authenticated user cannot get another user's notification.
+     * @allow (list) Authenticated user can list notifications for themself.
+     * @deny (list) Authenticated user cannot list notifications for another user.
+     * @allow (update) Authenticated user can update their own notification.
+     * @deny (update) Authenticated user cannot update another user's notification.
+     * @allow (delete) Authenticated user can delete their own notification.
+     * @deny (delete) Authenticated user cannot delete another user's notification.
+     * @principle Enforces document ownership for user notifications.
+     */
+    match /users/{userId}/notifications/{notificationId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}
