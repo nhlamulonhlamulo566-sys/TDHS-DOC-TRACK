@@ -102,9 +102,12 @@ export default function SettingsPage() {
 
 
   return (
-    <>
-      <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Settings</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight font-headline">Settings</h1>
+            <p className="text-muted-foreground">Manage application settings and user access.</p>
+        </div>
       </div>
       
       <Card>
@@ -225,6 +228,6 @@ export default function SettingsPage() {
             )}
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 }

@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
@@ -38,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, ShieldCheck } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, ShieldCheck, Ban } from 'lucide-react';
 import type { Department } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -67,7 +66,7 @@ export default function DepartmentsPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [editedDepartmentName, setEditedDepartmentName] = useState('');
 
-  const canManageDepartments = currentUser?.role === 'Administrator';
+  const isAdmin = currentUser?.role === 'Administrator';
 
   const addDepartment = async (department: Omit<Department, 'id'>) => {
     if (!firestore) {
@@ -162,12 +161,31 @@ export default function DepartmentsPage() {
     });
   }
 
+  if (!isAdmin) {
+    return (
+        <Card className="mt-4">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Ban className="text-destructive" />
+                    Access Denied
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>You do not have the necessary permissions to view this page. Please contact an administrator if you believe this is an error.</p>
+            </CardContent>
+        </Card>
+    );
+  }
+
 
   return (
-    <>
-      <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Departments</h1>
-        {canManageDepartments && (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight font-headline">Departments</h1>
+            <p className="text-muted-foreground">View and manage organizational departments.</p>
+        </div>
+        {isAdmin && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
                 <Button>
@@ -206,7 +224,7 @@ export default function DepartmentsPage() {
         <CardHeader>
           <CardTitle>Department List</CardTitle>
            <CardDescription>
-            {canManageDepartments
+            {isAdmin
               ? "Manage all departments in the organization."
               : "You are viewing a list of all departments. Management is restricted to administrators."}
           </CardDescription>
@@ -217,7 +235,7 @@ export default function DepartmentsPage() {
               <TableRow>
                 <TableHead>Department Name</TableHead>
                 <TableHead>ID</TableHead>
-                {canManageDepartments && <TableHead className="text-right">Actions</TableHead>}
+                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -225,7 +243,7 @@ export default function DepartmentsPage() {
                 <TableRow key={department.id}>
                   <TableCell className="font-medium">{department.name}</TableCell>
                   <TableCell className="text-muted-foreground">{department.id}</TableCell>
-                  {canManageDepartments && (
+                  {isAdmin && (
                     <TableCell className="text-right">
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -302,6 +320,6 @@ export default function DepartmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-    </>
+    </div>
   );
 }

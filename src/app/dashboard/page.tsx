@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const { data: dashboardDocuments, isLoading: isDocumentsLoading } = useCollection<Document>(documentsQuery);
 
   const handleAddDocument = (
-    newDocument: Omit<Document, 'id' | 'history' | 'currentStep' | 'workflowId' | 'status' | 'pendingDepartmentId'>,
+    newDocument: Omit<Document, 'id' | 'history' | 'currentStep' | 'status' | 'pendingDepartmentId' | 'workflowId'>
   ) => {
     addDocument(newDocument);
   };
@@ -75,13 +75,14 @@ export default function DashboardPage() {
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
           onAddDocument={handleAddDocument}
+          workflows={workflows}
         />
       )}
       
       {dashboardDocuments && dashboardDocuments.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 mt-6">
           {dashboardDocuments.slice(0,8).map((doc) => (
-            <DocumentCard key={doc.id} document={doc} workflows={workflows} departments={departments} />
+            <DocumentCard key={doc.id} document={doc} workflows={workflows} departments={departments} currentUser={currentUser} />
           ))}
         </div>
       ) : (
@@ -99,3 +100,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    

@@ -26,7 +26,7 @@ interface AppContextType {
   currentUser: User | null;
   workflows: Workflow[];
   departments: Department[];
-  addDocument: (doc: Omit<Document, 'id' | 'history' | 'currentStep' | 'workflowId' | 'status' | 'pendingDepartmentId'>) => void;
+  addDocument: (doc: Omit<Document, 'id' | 'history' | 'currentStep' | 'status' | 'pendingDepartmentId' | 'workflowId' >, workflowId: string) => void;
   updateDocument: (docId: string, updates: Partial<Document>) => void;
   deleteDocument: (docId: string) => void;
   addDocumentHistory: (docId: string, historyEntry: Partial<DocumentHistory>, isNewStep?: boolean, currentStep?: number, currentHistory?: DocumentHistory[]) => void;
@@ -76,15 +76,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateDocumentNonBlocking(docRef, updates);
   };
 
-  const addDocument = (docData: Omit<Document, 'id' | 'history' | 'currentStep' | 'workflowId' | 'status' | 'pendingDepartmentId'>) => {
-    if (!firestore) return;
+  const addDocument = (docData: Omit<Document, 'id' | 'history' | 'currentStep' | 'status' | 'pendingDepartmentId' | 'workflowId'>) => {
+    if (!firestore || !currentUser) return;
+    
     const documentsCol = collection(firestore, 'documents');
+    // Document is created without a workflow initially
     const newDoc: Omit<Document, 'id'> = {
       ...docData,
-      workflowId: '',
-      currentStep: 0,
+      workflowId: '', // Initially no workflow
+      currentStep: -1, // No step
       history: [],
-      status: 'In-Progress',
+      status: 'In-Progress', // Or a new status like 'Draft'
       pendingDepartmentId: '',
     };
     addDocumentNonBlocking(documentsCol, newDoc);
@@ -103,6 +105,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   
   const addDocumentHistory = (docId: string, historyEntry: Partial<DocumentHistory>, isNewStep = false, currentStep = 0, currentHistory: DocumentHistory[] = []) => {
+      if (!firestore) return;
+      
       let newHistory = [...currentHistory];
       
       if (isNewStep) {
@@ -113,18 +117,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
           newHistory.push(historyEntry as DocumentHistory);
       } else {
-          // Update the status and notes of the CURRENT step in the history
+          // Update the status, notes, and fileUrl of the CURRENT step in the history
           const currentStepIndex = currentStep;
           if (newHistory[currentStepIndex]) {
             newHistory[currentStepIndex] = { ...newHistory[currentStepIndex], ...historyEntry };
           } else {
-            // This case should ideally not happen if logic is correct
             console.error("Attempted to update a history step that doesn't exist.");
             return;
           }
       }
       
-      updateDocument(docId, { history: newHistory });
+      const docRef = doc(firestore, 'documents', docId);
+      updateDocumentNonBlocking(docRef, { history: newHistory });
   };
   
   const addUser = async (userData: Omit<User, 'id'>, password: string) => {
@@ -191,3 +195,5 @@ export function useAppContext() {
   }
   return context;
 }
+
+    

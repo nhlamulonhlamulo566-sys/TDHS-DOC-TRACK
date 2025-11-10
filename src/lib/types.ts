@@ -18,6 +18,7 @@ export interface DocumentHistory {
   status: 'Pending' | 'Approved' | 'Rejected' | 'Upcoming' | 'Completed';
   timestamp: string;
   notes?: string;
+  fileUrl?: string;
 }
 
 export interface Document {
@@ -25,6 +26,7 @@ export interface Document {
   name: string;
   type: string;
   content: string;
+  fileUrl?: string;
   workflowId: string;
   currentStep: number;
   history: DocumentHistory[];

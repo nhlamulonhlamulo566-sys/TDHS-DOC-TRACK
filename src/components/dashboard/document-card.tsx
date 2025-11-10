@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import type { Document, Workflow, Department } from '@/lib/types';
+import type { Document, Workflow, Department, User, DocumentHistory } from '@/lib/types';
 import * as Lucide from 'lucide-react';
 import { formatRelativeTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -28,16 +28,18 @@ interface DocumentCardProps {
   document: Document;
   workflows: Workflow[];
   departments: Department[];
+  currentUser: User | null;
   onEdit?: (document: Document) => void;
   onDelete?: (document: Document) => void;
 }
 
-export function DocumentCard({ document, workflows, departments, onEdit, onDelete }: DocumentCardProps) {
+export function DocumentCard({ document, workflows, departments, currentUser, onEdit, onDelete }: DocumentCardProps) {
   const workflow = workflows.find((w) => w.id === document.workflowId);
-  const currentStepInfo = document.history[document.history.length - 1];
-  const currentDepartment = departments.find(d => d.id === currentStepInfo?.departmentId);
+  const currentDepartment = departments.find(d => d.id === document.pendingDepartmentId);
+  
+  const lastActionHistory = document.history?.[document.history.length - 1];
 
-  const getStatusColor = (status: Document['status'] | Document['history'][number]['status'] | 'Upcoming') => {
+  const getStatusColor = (status: Document['status'] | DocumentHistory['status'] | 'Upcoming') => {
     switch (status) {
       case 'Approved':
       case 'Completed':
@@ -68,9 +70,11 @@ export function DocumentCard({ document, workflows, departments, onEdit, onDelet
         )
     }
     if (document.status === 'Rejected') {
+        const rejectingHistory = [...document.history].reverse().find(h => h.status === 'Rejected');
+        const rejectingDepartment = departments.find(d => d.id === rejectingHistory?.departmentId);
         return (
-            <Badge className="border-transparent bg-red-100 text-red-800">
-              Rejected
+            <Badge variant="destructive">
+              Rejected by {rejectingDepartment?.name || 'Unknown'}
             </Badge>
         )
     }
@@ -79,21 +83,28 @@ export function DocumentCard({ document, workflows, departments, onEdit, onDelet
     }
     return (
         <Badge variant="secondary">
-          {currentStepInfo?.status} at{' '}
+          Pending at{' '}
           <span className="font-semibold ml-1">{currentDepartment?.name}</span>
         </Badge>
     )
   }
 
+  const canViewDetails = 
+    currentUser?.role === 'Administrator' || // Admins can see all
+    !hasWorkflow || // Anyone can see if no workflow is assigned
+    document.status === 'Completed' || // Anyone can see completed
+    document.status === 'Rejected' || // Anyone who can see the card can see rejected
+    document.pendingDepartmentId === currentUser?.departmentId; // It's pending at my department
+
 
   return (
     <Card className="flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-1">
-       <CardHeader className="flex flex-row items-start justify-between">
+       <CardHeader className="flex flex-row items-start justify-between pb-4">
         <div>
-            <CardTitle className="truncate font-headline">{document.name}</CardTitle>
+            <CardTitle className="truncate font-headline text-lg">{document.name}</CardTitle>
             <CardDescription>{document.type}</CardDescription>
         </div>
-         {!hasWorkflow && onEdit && onDelete && (
+         {onEdit && onDelete && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
@@ -111,17 +122,17 @@ export function DocumentCard({ document, workflows, departments, onEdit, onDelet
             </DropdownMenu>
         )}
       </CardHeader>
-      <CardContent className="flex-grow space-y-4">
+      <CardContent className="flex-grow space-y-4 pt-0">
         <div>
           {getOverallStatus()}
-          {currentStepInfo?.timestamp && (
+          {lastActionHistory?.timestamp && (
             <p className="text-xs text-muted-foreground mt-1">
-                Last update: {formatRelativeTime(currentStepInfo?.timestamp)}
+                Last update: {formatRelativeTime(lastActionHistory?.timestamp)}
             </p>
           )}
         </div>
         
-        {hasWorkflow && (
+        {hasWorkflow && document.history && (
             <div className="space-y-2">
             <p className="text-sm font-medium">Progress</p>
             <div className="flex items-center space-x-2">
@@ -130,7 +141,7 @@ export function DocumentCard({ document, workflows, departments, onEdit, onDelet
                     const stepDept = departments.find(d => d.id === deptId);
                     const historyStep = document.history.find(h => h.departmentId === deptId);
                     
-                    let status: Document['history'][number]['status'] | 'Upcoming' = 'Upcoming';
+                    let status: DocumentHistory['status'] | 'Upcoming' = 'Upcoming';
                     if (historyStep) {
                         status = historyStep.status;
                     }
@@ -166,9 +177,15 @@ export function DocumentCard({ document, workflows, departments, onEdit, onDelet
         )}
       </CardContent>
       <CardFooter>
-        <Button variant="outline" size="sm" className="w-full" asChild>
-          <Link href={`/documents/${document.id}`}>View Details</Link>
-        </Button>
+        {canViewDetails ? (
+            <Button variant="outline" size="sm" className="w-full" asChild>
+                <Link href={`/documents/${document.id}`}>View Details</Link>
+            </Button>
+        ) : (
+            <Button variant="outline" size="sm" className="w-full" disabled>
+                View Details
+            </Button>
+        )}
       </CardFooter>
     </Card>
   );

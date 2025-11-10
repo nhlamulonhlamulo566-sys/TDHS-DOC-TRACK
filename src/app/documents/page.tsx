@@ -41,30 +41,37 @@ export default function DocumentsPage() {
     const canPerformActions = currentUser?.role !== 'Administrator';
 
     const filteredDocuments = useMemo(() => {
-        if (!currentUser) return [];
+        if (!currentUser || !documents) return [];
     
-        const isPrivilegedUser = currentUser.role === 'Administrator';
-        if (isPrivilegedUser) {
+        if (currentUser.role === 'Administrator') {
             return documents;
         }
     
         return documents.filter(doc => {
             const workflow = workflows.find(w => w.id === doc.workflowId);
-            
-            // Show documents that don't have a workflow assigned yet
-            if (!workflow) {
+            const originatingDepartmentId = doc.history?.[0]?.departmentId;
+            const userDepartmentId = currentUser.departmentId;
+
+            // Handle drafts: visible if no workflow is assigned yet
+            if (!workflow || !originatingDepartmentId) {
                 return true; 
             }
-    
-            // Logic for completed documents
-            if (doc.status === 'Completed') {
-                const originatingDepartmentId = doc.history[0]?.departmentId;
-                // Show completed doc only if the user is in the department that started it
-                return currentUser.departmentId === originatingDepartmentId;
+
+            // Handle completed or rejected documents
+            if (doc.status === 'Completed' || doc.status === 'Rejected') {
+                // ONLY visible to the originating department
+                return userDepartmentId === originatingDepartmentId;
             }
-            
-            // For In-Progress or Rejected documents, show if user's department is in the workflow
-            return workflow.departmentIds.includes(currentUser.departmentId || '');
+
+            // Handle in-progress documents
+            if (doc.status === 'In-Progress') {
+                // Visible if the user's department is the originator OR is in the workflow path
+                const isOriginator = userDepartmentId === originatingDepartmentId;
+                const isInWorkflow = userDepartmentId && workflow.departmentIds.includes(userDepartmentId);
+                return isOriginator || isInWorkflow;
+            }
+
+            return false;
         });
     }, [documents, workflows, currentUser]);
 
@@ -98,20 +105,24 @@ export default function DocumentsPage() {
 
 
     return (
-        <>
-            <div className="flex items-center justify-between space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight font-headline">All Documents</h1>
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight font-headline">All Documents</h1>
+                    <p className="text-muted-foreground">Browse and manage all documents relevant to you.</p>
+                </div>
             </div>
             {filteredDocuments.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                     {filteredDocuments.map((doc) => (
                         <DocumentCard 
                           key={doc.id} 
                           document={doc} 
                           workflows={workflows} 
                           departments={departments}
-                          onEdit={canPerformActions ? handleEditClick : undefined}
-                          onDelete={canPerformActions ? handleDeleteClick : undefined}
+                          currentUser={currentUser}
+                          onEdit={canPerformActions && !doc.workflowId ? handleEditClick : undefined}
+                          onDelete={canPerformActions && !doc.workflowId ? handleDeleteClick : undefined}
                         />
                     ))}
                 </div>
@@ -150,6 +161,6 @@ export default function DocumentsPage() {
                   </AlertDialogContent>
               </AlertDialog>
             )}
-        </>
+        </div>
     );
 }

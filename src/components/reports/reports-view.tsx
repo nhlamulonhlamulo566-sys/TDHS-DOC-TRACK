@@ -20,31 +20,29 @@ export function ReportsView() {
         if (!firestore) return null;
         return collection(firestore, 'documents');
     }, [firestore]);
-    const { data: documentsData } = useCollection<Document>(documentsQuery);
+    const { data: documentsData, isLoading: isDocumentsLoading } = useCollection<Document>(documentsQuery);
     const documents = useMemo(() => documentsData || [], [documentsData]);
     
     const workflowsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return collection(firestore, 'workflows');
     }, [firestore]);
-    const { data: workflowsData } = useCollection<Workflow>(workflowsQuery);
+    const { data: workflowsData, isLoading: isWorkflowsLoading } = useCollection<Workflow>(workflowsQuery);
     const workflows = useMemo(() => workflowsData || [], [workflowsData]);
 
     const departmentsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return collection(firestore, 'departments');
     }, [firestore]);
-    const { data: departmentsData } = useCollection<Department>(departmentsQuery);
+    const { data: departmentsData, isLoading: isDepartmentsLoading } = useCollection<Department>(departmentsQuery);
     const departments = useMemo(() => departmentsData || [], [departmentsData]);
 
     const reportData = useMemo(() => {
-        if (!documents || !departments || !currentUser || !workflows) {
+        if (isDocumentsLoading || isWorkflowsLoading || isDepartmentsLoading || !currentUser) {
             return null;
         }
-
-        const isPrivilegedUser = currentUser.role === 'Administrator';
         
-        const relevantDocuments = isPrivilegedUser
+        const relevantDocuments = currentUser.role === 'Administrator'
             ? documents
             : documents.filter(doc => {
                 if (!doc.workflowId) return false;
@@ -66,57 +64,44 @@ export function ReportsView() {
              return completionDate >= oneMonthAgo;
         }).length;
 
-        // Calculate processing times
+        // --- Corrected Processing Times Calculation ---
         const deptTimes: { [key: string]: number[] } = {};
         relevantDocuments.forEach(doc => {
-            for (let i = 0; i < doc.history.length; i++) {
-                const currentStep = doc.history[i];
-                if (!currentStep) continue;
+            if (!doc.history || doc.history.length < 1) return;
 
-                // We can only calculate a duration if a step is no longer pending.
-                if (currentStep.status === 'Pending' || currentStep.status === 'Upcoming') {
-                    continue;
-                }
-
-                const startTime = new Date(currentStep.timestamp);
-                let endTime;
-
-                const nextStep = doc.history[i + 1];
-                if (nextStep) {
-                    // If there's a next step, the duration is the time until the next step was created.
-                    endTime = new Date(nextStep.timestamp);
-                } else if (doc.status === 'Completed' || doc.status === 'Rejected') {
-                    // If this is the final step of a finished workflow, the end time is its own timestamp.
-                    // The duration calculation will be based on the start of this step vs the start of the previous step.
-                    // This is a bit tricky. A better approach is to calculate from start of step to end of step.
-                    // The end of a step is when it's actioned (Approved/Rejected).
-                    // The start of a step is when it becomes 'Pending'.
+            doc.history.forEach((step, index) => {
+                // We can only calculate a duration for a step that is complete (Approved/Rejected)
+                if (step.status === 'Approved' || step.status === 'Rejected') {
+                    let startTime: Date | null = null;
                     
-                    // Let's refine the logic.
-                    // Duration = (Timestamp of Approval/Rejection) - (Timestamp of becoming Pending)
-                    // The `currentStep.timestamp` IS the timestamp of the action.
-                    // To find the start time, we need the timestamp of the PREVIOUS history item.
-                    const prevStep = doc.history[i - 1];
-                    let stepStartTime;
-
-                    if (prevStep) {
-                        stepStartTime = new Date(prevStep.timestamp);
+                    if (index === 0) {
+                        // For the first step, the start time is its own timestamp, assuming it was created as 'Pending'.
+                        // To be more precise, we rely on the creation logic setting a 'Pending' status on initiation.
+                        const firstStep = doc.history[0];
+                        if (firstStep.status === 'Pending' && firstStep.notes === 'Workflow initiated.') {
+                             startTime = new Date(firstStep.timestamp);
+                        }
                     } else {
-                        // This is the first step. The start time is when it was initiated.
-                        stepStartTime = new Date(doc.history[0].timestamp);
+                        // For subsequent steps, the start time is the timestamp of the *previous* step's completion.
+                        // This marks when the current step became 'Pending'.
+                        const previousStep = doc.history[index - 1];
+                        if (previousStep) {
+                            startTime = new Date(previousStep.timestamp);
+                        }
                     }
 
-                    endTime = new Date(currentStep.timestamp); // The time the action was taken
-                    
-                    const duration = differenceInDays(endTime, stepStartTime);
-
-                    if (!deptTimes[currentStep.departmentId]) {
-                        deptTimes[currentStep.departmentId] = [];
+                    if (startTime) {
+                        const endTime = new Date(step.timestamp);
+                        const duration = differenceInDays(endTime, startTime);
+                        
+                        if (!deptTimes[step.departmentId]) {
+                            deptTimes[step.departmentId] = [];
+                        }
+                        // Ensure no negative durations are logged
+                        deptTimes[step.departmentId].push(duration >= 0 ? duration : 0);
                     }
-                    deptTimes[currentStep.departmentId].push(duration >= 0 ? duration : 0);
-                    
                 }
-            }
+            });
         });
 
         const avgDeptTimes = Object.entries(deptTimes)
@@ -128,8 +113,7 @@ export function ReportsView() {
                     time: parseFloat(avg.toFixed(1)),
                 };
             })
-            // Only include departments that are relevant to the user (unless privileged)
-            .filter(d => isPrivilegedUser || d.department === departments.find(dep => dep.id === currentUser.departmentId)?.name);
+            .filter(d => currentUser.role === 'Administrator' || d.department === departments.find(dep => dep.id === currentUser.departmentId)?.name);
         
         const bottleneckDept = avgDeptTimes.reduce((max, current) => (current.time > max.time ? current : max), { department: 'N/A', time: 0 });
 
@@ -172,7 +156,7 @@ export function ReportsView() {
             workflowEfficiency: monthlyData,
         };
 
-    }, [documents, departments, currentUser, workflows]);
+    }, [documents, departments, currentUser, workflows, isDocumentsLoading, isWorkflowsLoading, isDepartmentsLoading]);
 
     if (!reportData) {
       return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>

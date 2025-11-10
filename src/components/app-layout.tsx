@@ -22,6 +22,10 @@ import { useIdle } from '@/hooks/use-idle';
 import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
+import { FirebaseClientProvider } from '@/firebase';
+import { AppProvider } from '@/context/app-context';
+import { FileProvider } from '@/context/file-context';
+
 
 const pageTitles: { [key: string]: string } = {
   '/dashboard': 'Dashboard',
@@ -30,10 +34,10 @@ const pageTitles: { [key: string]: string } = {
   '/workflows': 'Workflows',
   '/reports': 'Reports',
   '/settings': 'Settings',
-  '/': 'Login',
+  '/login': 'Login',
 };
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
@@ -49,7 +53,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         title: 'Session Expired',
         description: 'You have been logged out due to inactivity.',
       });
-      router.push('/');
+      router.push('/login');
     });
   };
 
@@ -73,10 +77,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (isUserLoading) {
       return; // Wait until user status is resolved
     }
-    if (!user && pathname !== '/') {
-      router.push('/');
+    if (!user && pathname !== '/login' && pathname !== '/') {
+      router.push('/login');
     }
-    if(user && pathname === '/') {
+    if(user && (pathname === '/login' || pathname === '/')) {
         router.push('/dashboard');
     }
   }, [isUserLoading, user, pathname, router]);
@@ -105,9 +109,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
     return pageTitles[pathname] || 'Dashboard';
   }
+  
+  const isAuthPage = pathname === '/login' || pathname === '/';
 
-  // Show a loading screen while auth state is being determined, if not on the login page
-  if (isUserLoading && pathname !== '/') {
+  // Show a loading screen while auth state is being determined, if not on an auth page
+  if (isUserLoading && !isAuthPage) {
       return (
         <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -115,8 +121,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )
   }
   
-  // If not authenticated and not on login page, return null to prevent flicker before redirect
-  if (!user && pathname !== '/') {
+  // If not authenticated and not on an auth page, redirect happens in useEffect, so show loader
+  if (!user && !isAuthPage) {
       return (
          <div className="flex h-screen w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -124,7 +130,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       );
   }
   
-  if (pathname === '/') {
+  if (isAuthPage) {
     return <div className="min-h-screen">{children}</div>
   }
 
@@ -193,9 +199,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <UserNav />
             </div>
           </header>
-          <main className="flex-1 flex flex-col p-4 sm:p-8 pt-6">{children}</main>
+          <main className="flex-1 p-4 sm:p-8 pt-6">
+            <div className="mx-auto w-full">
+              {children}
+            </div>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>
   );
+}
+
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <FirebaseClientProvider>
+      <AppProvider>
+        <FileProvider>
+          <AppLayoutContent>{children}</AppLayoutContent>
+        </FileProvider>
+      </AppProvider>
+    </FirebaseClientProvider>
+  )
 }
