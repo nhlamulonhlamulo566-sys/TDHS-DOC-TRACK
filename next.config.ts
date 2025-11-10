@@ -3,6 +3,10 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  pwa: {
+    disable: true,
+    dest: 'public'
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
